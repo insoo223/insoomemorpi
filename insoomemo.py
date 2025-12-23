@@ -95,8 +95,6 @@ def clear_fields():
     return {"ID": "", "mySubj": "", "myMemo": "", "search": ""}
 
 def main():
-    notes = []  # store notes as dictionaries
-
     print("Welcome to Insoo's Memo DB Program!")
     print("Available commands: add(a), read(r), quit(q)")
 
@@ -112,15 +110,24 @@ def main():
             target = input("ID or subject: ").strip()
             records = read_records(target)
             if records:
+                total = len(records)
                 print("\nRead by ID or subject:")
-                for rec in records:
-                    print(f"ID: {rec['ID']}")
-                    print(f"Subject: {rec['mySubj']}")
-                    print("Memo:")
-                    # Clean up carriage returns and tabs
+                for i, rec in enumerate(records, start=1):
+                    print(f"{i}. ID: {rec['ID']}")
+                    print(f"   Subject: {rec['mySubj']}")
                     clean_memo = rec['myMemo'].replace("\r", "").replace("\t", "")
-                    print(clean_memo.strip())
+                    print("   Memo:")
+                    print("   " + clean_memo.strip().replace("\n", "\n   "))
                     print("-" * 40)  # separator line
+                    
+                    # Calculate remaining to show
+                    remain = total - i
+                    if remain > 0:
+                        # Prompt user after each record
+                        cont = input(f"Continue? ({remain}/{total} remain, Enter=next, s=stop): ").strip().lower()
+                        if cont == "s":
+                            print("Stopped showing remaining records.")
+                            break
             else:
                 print("No record found.")        
         elif command in ("q", "quit"):
