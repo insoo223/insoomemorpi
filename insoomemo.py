@@ -22,11 +22,11 @@ JDBC_URL = f"jdbc:ucanaccess://{ACCDB_PATH}"
 def get_conn():
     return jaydebeapi.connect(JDBC_DRIVER, JDBC_URL, [], CLASSPATH)
 
-def read_record(search_text):
+def read_records(search_text):
     """
     If search_text is numeric: SELECT by ID
     Else: SELECT by subject LIKE '%text%'
-    Returns (ID, mySubj, myMemo) or None
+    Returns list of dicts: [{"ID":..., "mySubj":..., "myMemo":...}, ...]
     """
     conn = get_conn()
     try:
@@ -46,14 +46,16 @@ def read_record(search_text):
             params = [f"%{search_text}%"]
 
         curs.execute(query, params)
-        row = curs.fetchone()
-        if row:
-            return {"ID": row[0], "mySubj": row[1], "myMemo": row[2]}
-        return None
+        rows = curs.fetchall()
+        results = []
+        for row in rows:
+            results.append({"ID": row[0], "mySubj": row[1], "myMemo": row[2]})
+        return results
     finally:
         conn.close()
 
 def update_record(record_id, subj, memo):
+    
     """
     UPDATE tblMemo SET mySubj=?, myMemo=?, Updated=? WHERE ID=?
     Returns affected row count
@@ -85,6 +87,7 @@ def add_record(subj, memo):
         return curs.rowcount
     finally:
         conn.close()
+
 def clear_fields():
     """
     Mirrors btnClear_Click: simply returns blank defaults for UI use.
@@ -107,15 +110,17 @@ def main():
             print("New memo added successfully!")
         elif command in ("r", "read"):
             target = input("ID or subject: ").strip()
-            record = read_record(target)
-            if record:
+            records = read_records(target)
+            if records:
                 print("\nRead by ID or subject:")
-                print(f"ID: {record['ID']}")
-                print(f"Subject: {record['mySubj']}")
-                print("Memo:")
-                # Clean up carriage returns and tabs
-                clean_memo = record['myMemo'].replace("\r", "").replace("\t", "")
-                print(clean_memo.strip())
+                for rec in records:
+                    print(f"ID: {rec['ID']}")
+                    print(f"Subject: {rec['mySubj']}")
+                    print("Memo:")
+                    # Clean up carriage returns and tabs
+                    clean_memo = rec['myMemo'].replace("\r", "").replace("\t", "")
+                    print(clean_memo.strip())
+                    print("-" * 40)  # separator line
             else:
                 print("No record found.")        
         elif command in ("q", "quit"):
