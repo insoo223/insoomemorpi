@@ -85,18 +85,43 @@ def add_record(subj, memo):
         return curs.rowcount
     finally:
         conn.close()
-
 def clear_fields():
     """
     Mirrors btnClear_Click: simply returns blank defaults for UI use.
     """
     return {"ID": "", "mySubj": "", "myMemo": "", "search": ""}
 
+def main():
+    notes = []  # store notes as dictionaries
+
+    print("Welcome to Insoo's Memo DB Program!")
+    print("Available commands: add, read, quit")
+
+    while True:
+        command = input("\nEnter command: ").strip().lower()
+
+        if command == "add":
+            subject = input("subject: ").strip()
+            body = input("body: ").strip()
+            add_record(subject, body)
+            print("New memo added successfully!")
+
+        elif command == "read":
+            print("Read by subject:", read_record("blank"))
+            """
+            if not notes:
+                print("No notes available.")
+            else:
+                print("\nYour Notes:")
+                for i, note in enumerate(notes, start=1):
+                    print(f"{i}. {note['subject']} - {note['body']}")
+            """
+        elif command == "quit":
+            print("Exiting program. Goodbye!")
+            break
+
+        else:
+            print("Unknown command. Try again.")
+
 if __name__ == "__main__":
-    # Demo usage (replace with your UI/CLI as needed)
-    print("Add:", add_record("Test subject", "Hello from Raspberry Pi"))
-    print("Read by subject:", read_record("Test"))
-    rec = read_record("1")  # try an ID that exists
-    if rec:
-        print("Update:", update_record(rec["ID"], rec["mySubj"], rec["myMemo"] + " [updated]"))
-    print("Cleared fields:", clear_fields())
+    main()
