@@ -103,9 +103,17 @@ def main():
 
         if command in ("a", "add"):
             subject = input("subject: ").strip()
-            body = input("body: ").strip()
+            print("Enter memo text (multi-line). Press Enter on a blank line to finish:")
+            lines = []
+            while True:
+                line = input()
+                if line == "END":   # END & Enter at the final line ends input
+                    break
+                lines.append(line)
+            body = "\n".join(lines)  # join all lines with newline characters
             add_record(subject, body)
             print("New memo added successfully!")
+
         elif command in ("r", "read"):
             target = input("ID or subject: ").strip()
             records = read_records(target)
@@ -122,12 +130,19 @@ def main():
                     
                     # Calculate remaining to show
                     remain = total - i
+                    # Prompt user after each record
+                    action = input(f"Continue? ({remain}/{total} remain, Enter=next, s=stop, u=modify & update): ").strip().lower()
                     if remain > 0:
-                        # Prompt user after each record
-                        cont = input(f"Continue? ({remain}/{total} remain, Enter=next, s=stop): ").strip().lower()
-                        if cont == "s":
+                        if action == "s":
                             print("Stopped showing remaining records.")
                             break
+                    if action == "u":
+                        newSubj = input("New subj: ").strip()
+                        newBody = input("New body: ").strip()
+                        if ((len(newSubj) > 0) and (len(newBody) > 0)):
+                            count = update_record(rec["ID"], newSubj, newBody)
+                            print(f"{count} record(s) updated.")
+
             else:
                 print("No record found.")        
         elif command in ("q", "quit"):
