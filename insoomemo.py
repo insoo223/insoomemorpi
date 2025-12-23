@@ -95,31 +95,32 @@ def main():
     notes = []  # store notes as dictionaries
 
     print("Welcome to Insoo's Memo DB Program!")
-    print("Available commands: add, read, quit")
+    print("Available commands: add(a), read(r), quit(q)")
 
     while True:
         command = input("\nEnter command: ").strip().lower()
 
-        if command == "add":
+        if command in ("a", "add"):
             subject = input("subject: ").strip()
             body = input("body: ").strip()
             add_record(subject, body)
             print("New memo added successfully!")
-
-        elif command == "read":
-            print("Read by subject:", read_record("blank"))
-            """
-            if not notes:
-                print("No notes available.")
+        elif command in ("r", "read"):
+            target = input("ID or subject: ").strip()
+            record = read_record(target)
+            if record:
+                print("\nRead by ID or subject:")
+                print(f"ID: {record['ID']}")
+                print(f"Subject: {record['mySubj']}")
+                print("Memo:")
+                # Clean up carriage returns and tabs
+                clean_memo = record['myMemo'].replace("\r", "").replace("\t", "")
+                print(clean_memo.strip())
             else:
-                print("\nYour Notes:")
-                for i, note in enumerate(notes, start=1):
-                    print(f"{i}. {note['subject']} - {note['body']}")
-            """
-        elif command == "quit":
-            print("Exiting program. Goodbye!")
-            break
-
+                print("No record found.")        
+        elif command in ("q", "quit"):
+                    print("Exiting program. Goodbye!")
+                    break
         else:
             print("Unknown command. Try again.")
 
