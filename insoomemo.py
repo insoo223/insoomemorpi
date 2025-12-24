@@ -19,6 +19,9 @@ JDBC_DRIVER = "net.ucanaccess.jdbc.UcanaccessDriver"
 # If your DB is NOT encrypted:
 JDBC_URL = f"jdbc:ucanaccess://{ACCDB_PATH}"
 
+ # global registry at module level
+function_registry = {}
+                        
 def get_conn():
     return jaydebeapi.connect(JDBC_DRIVER, JDBC_URL, [], CLASSPATH)
 
@@ -143,6 +146,19 @@ def main():
                             count = update_record(rec["ID"], newSubj, newBody)
                             print(f"{count} record(s) updated.")
 
+                    if action == "d":
+                        subj = rec["mySubj"].strip()
+                        body = rec["myMemo"]
+                        if subj and body:
+                            try:
+                                exec(body, globals())  # define function in global scope
+                                function_registry[subj] = eval(subj)
+                                print(f"Function '{subj}' registered successfully.")
+                                # Demo call if it's 'add'
+                                if subj == "add":
+                                    print("Demo: ", function_registry[subj](10, 20))
+                            except Exception as e:
+                                    print(F"Error loading ft: {e}")
             else:
                 print("No record found.")        
         elif command in ("q", "quit"):
