@@ -5,41 +5,32 @@ from dotenv import load_dotenv
 
 # Load variables from .env file
 load_dotenv()
+
+# Paths
 ACCDB_PATH = os.getenv("ACCDB_PATH")
+UCANACCESS_LIB = os.getenv("UCANACCESS_LIB")
 if os.getenv("ENV") == "TEST":
     print(f"ACCDB_PATH is {ACCDB_PATH}")
-# Paths
-#ACCDB_PATH = "/home/insoo/Documents/share/insooMemo.accdb"  # update to your actual path
-UCANACCESS_LIB = "/home/insoo/ucanaccess/lib"                   # folder with all required JARs
+    print(f"UCANACCESS_LIB is {UCANACCESS_LIB}")
 
 # Build classpath from all jars in UCANACCESS_LIB
 classpath_jars = [os.path.join(UCANACCESS_LIB, j) for j in os.listdir(UCANACCESS_LIB) if j.endswith(".jar")]
 CLASSPATH = ":".join(classpath_jars)
 
 # JDBC details
-JDBC_DRIVER = "net.ucanaccess.jdbc.UcanaccessDriver"
-# If your Access DB is encrypted with a password:
-#JDBC_URL = f"jdbc:ucanaccess://{ACCDB_PATH};jackcessOpener=com.healthmarketscience.jackcess.encryption.AESOpener"
-
-# If your DB is NOT encrypted:
+JDBC_DRIVER = os.getenv("JDBC_DRIVER")
 JDBC_URL = f"jdbc:ucanaccess://{ACCDB_PATH}"
 
 # global registry at module level
 function_registry = {}
-                        
+
 def get_conn():
     return jaydebeapi.connect(JDBC_DRIVER, JDBC_URL, [], CLASSPATH)
 
 def read_records(search_text):
-    """
-    If search_text is numeric: SELECT by ID
-    Else: SELECT by subject LIKE '%text%'
-    Returns list of dicts: [{"ID":..., "mySubj":..., "myMemo":...}, ...]
-    """
     conn = get_conn()
     try:
         curs = conn.cursor()
-        # Determine numeric vs string
         try:
             float(search_text)
             is_num = True
@@ -47,27 +38,27 @@ def read_records(search_text):
             is_num = False
 
         if is_num:
-            query = "SELECT ID, mySubj, myMemo FROM tblMemo WHERE ID = ?"
+            query = "SELECT ID, mySubj, myMemo, dependsOn FROM tblMemo WHERE ID = ?"
             params = [search_text]
         else:
-            query = "SELECT ID, mySubj, myMemo FROM tblMemo WHERE mySubj LIKE ?"
+            query = "SELECT ID, mySubj, myMemo, dependsOn FROM tblMemo WHERE mySubj LIKE ?"
             params = [f"%{search_text}%"]
 
         curs.execute(query, params)
         rows = curs.fetchall()
         results = []
         for row in rows:
-            results.append({"ID": row[0], "mySubj": row[1], "myMemo": row[2]})
+            results.append({
+                "ID": row[0],
+                "mySubj": row[1],
+                "myMemo": row[2],
+                "dependsOn": row[3] if len(row) > 3 else ""
+            })
         return results
     finally:
         conn.close()
 
 def update_record(record_id, subj, memo):
-    
-    """
-    UPDATE tblMemo SET mySubj=?, myMemo=?, Updated=? WHERE ID=?
-    Returns affected row count
-    """
     conn = get_conn()
     try:
         curs = conn.cursor()
@@ -80,16 +71,12 @@ def update_record(record_id, subj, memo):
     finally:
         conn.close()
 
-def add_record(subj, memo):
-    """
-    INSERT INTO tblMemo (mySubj, myMemo) VALUES (?, ?)
-    Returns affected row count
-    """
+def add_record(subj, memo, dependsOn=""):
     conn = get_conn()
     try:
         curs = conn.cursor()
-        query = "INSERT INTO tblMemo (mySubj, myMemo) VALUES (?, ?)"
-        params = [subj, memo]
+        query = "INSERT INTO tblMemo (mySubj, myMemo, dependsOn) VALUES (?, ?, ?)"
+        params = [subj, memo, dependsOn]
         curs.execute(query, params)
         conn.commit()
         return curs.rowcount
@@ -97,10 +84,26 @@ def add_record(subj, memo):
         conn.close()
 
 def clear_fields():
-    """
-    Mirrors btnClear_Click: simply returns blank defaults for UI use.
-    """
     return {"ID": "", "mySubj": "", "myMemo": "", "search": ""}
+
+# 🔑 New helper: load function with dependency resolution
+def load_function(rec):
+    subj = rec["mySubj"].strip()
+    body = rec["myMemo"]
+    deps = rec.get("dependsOn", "").split(",") if rec.get("dependsOn") else []
+
+    # Load dependencies first
+    for dep in deps:
+        dep = dep.strip()
+        if dep and dep not in function_registry:
+            dep_records = read_records(dep)
+            if dep_records:
+                load_function(dep_records[0])
+
+    # Load the function itself
+    exec(body, globals())
+    function_registry[subj] = eval(subj)
+    print(f"Function '{subj}' registered successfully.")
 
 def main():
     print("Welcome to Insoo's Memo DB Program!")
@@ -109,19 +112,18 @@ def main():
     while True:
         command = input("\nEnter command: ").strip().lower()
 
-        if command in ("l", "list"):
-            list_tables()
         if command in ("a", "add"):
             subject = input("subject: ").strip()
-            print("Enter memo text (multi-line). Press Enter on a blank line to finish:")
+            print("Enter memo text (multi-line). Type END on its own line to finish:")
             lines = []
             while True:
                 line = input()
-                if line == "END":   # END & Enter at the final line ends input
+                if line == "END":
                     break
                 lines.append(line)
-            body = "\n".join(lines)  # join all lines with newline characters
-            add_record(subject, body)
+            body = "\n".join(lines)
+            depends = input("Dependencies (comma-separated, leave blank if none): ").strip()
+            add_record(subject, body, depends)
             print("New memo added successfully!")
 
         elif command in ("r", "read"):
@@ -129,47 +131,39 @@ def main():
             records = read_records(target)
             if records:
                 total = len(records)
-                print("\nRead by ID or subject:")
                 for i, rec in enumerate(records, start=1):
                     print(f"{i}. ID: {rec['ID']}")
                     print(f"   Subject: {rec['mySubj']}")
                     clean_memo = rec['myMemo'].replace("\r", "").replace("\t", "")
                     print("   Memo:")
                     print("   " + clean_memo.strip().replace("\n", "\n   "))
-                    print("-" * 40)  # separator line
-                    
-                    # Calculate remaining to show
+                    print("-" * 40)
+
                     remain = total - i
-                    # Prompt user after each record
-                    action = input(f"Continue? ({remain}/{total} remain, Enter=next, s=stop, u=modify & update): ").strip().lower()
-                    if remain > 0:
-                        if action == "s":
-                            print("Stopped showing remaining records.")
-                            break
+                    action = input(f"Continue? ({remain}/{total} remain, Enter=next, s=stop, u=update, d=do ft def): ").strip().lower()
+                    if remain > 0 and action == "s":
+                        break
                     if action == "u":
                         newSubj = input("New subj: ").strip()
                         newBody = input("New body: ").strip()
-                        if ((len(newSubj) > 0) and (len(newBody) > 0)):
+                        if newSubj and newBody:
                             count = update_record(rec["ID"], newSubj, newBody)
                             print(f"{count} record(s) updated.")
-
                     if action == "d":
-                        subj = rec["mySubj"].strip()
-                        body = rec["myMemo"]
-                        if subj and body:
-                            try:
-                                exec(body, globals())  # define function in global scope
-                                function_registry[subj] = eval(subj)
-                                print(f"Function '{subj}' registered successfully.")
-                                # Demo call the current function,i.e. def
-                                print(f"Demo{subj}: ", function_registry[subj](10, 20))
-                            except Exception as e:
-                                    print(F"Error loading ft: {e}")
+                        try:
+                            load_function(rec)
+                            params = input("Enter parameters separated by commas: ")
+                            args = [p.strip() for p in params.split(",") if p.strip()]
+                            result = function_registry[rec["mySubj"]](*args)
+                            print(f"Demo {rec['mySubj']}: {result}")
+                        except Exception as e:
+                            print(f"Error loading function: {e}")
             else:
-                print("No record found.")        
+                print("No record found.")
+
         elif command in ("q", "quit"):
-                    print("Exiting program. Goodbye!")
-                    break
+            print("Exiting program. Goodbye!")
+            break
         else:
             print("Unknown command. Try again.")
 
