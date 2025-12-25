@@ -1,11 +1,15 @@
 import jaydebeapi
 import os
 from datetime import date
+from dotenv import load_dotenv
 
-# Security
-# The ACCDB_PATH is hidden in the DB
-BOOTSTRAP_PATH = "/home/insoo/Documents/share/insooConfig.accdb"
-
+# Load variables from .env file
+load_dotenv()
+ACCDB_PATH = os.getenv("ACCDB_PATH")
+if os.getenv("ENV") == "TEST":
+    print(f"ACCDB_PATH is {ACCDB_PATH}")
+# Paths
+#ACCDB_PATH = "/home/insoo/Documents/share/insooMemo.accdb"  # update to your actual path
 UCANACCESS_LIB = "/home/insoo/ucanaccess/lib"                   # folder with all required JARs
 
 # Build classpath from all jars in UCANACCESS_LIB
@@ -18,33 +22,6 @@ JDBC_DRIVER = "net.ucanaccess.jdbc.UcanaccessDriver"
 #JDBC_URL = f"jdbc:ucanaccess://{ACCDB_PATH};jackcessOpener=com.healthmarketscience.jackcess.encryption.AESOpener"
 
 # If your DB is NOT encrypted:
-JDBC_URL_BOOT = f"jdbc:ucanaccess://{BOOTSTRAP_PATH}"
-
-def get_bootstrap_conn():
-    return jaydebeapi.connect(JDBC_DRIVER, JDBC_URL_BOOT, [], CLASSPATH)
-    
-def get_target_accdb_path():
-    conn = get_bootstrap_conn()
-    try:
-        curs = conn.cursor()
-        curs.execute("SELECT myMemo FROM tblConfig WHERE mySubj = ?", ["ACCDB_PATH"])
-        row = curs.fetchone()
-        if row:
-            """
-            To run test mode 
-            (.insoomemo) insoo@pi3db:~/github/insoomemorpi $ ENV=TEST python insoomemo.py
-            """
-            if os.getenv("ENV") == "TEST":
-                print("ACCDB_PATH successfuly found in tblConfig")
-            return row[0].strip()
-        else:
-            raise RuntimeError("ACCDB_PATH not found in tblConfig")
-    finally:
-        conn.close()
-
-ACCDB_PATH = get_target_accdb_path()
-if os.getenv("ENV") == "TEST":
-    print(f"ACCDB_PATH is {ACCDB_PATH}")
 JDBC_URL = f"jdbc:ucanaccess://{ACCDB_PATH}"
 
 # global registry at module level
