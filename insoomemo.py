@@ -1,6 +1,8 @@
 import jaydebeapi
 import os
 import requests
+import ast
+
 from datetime import date
 from dotenv import load_dotenv
 
@@ -88,7 +90,7 @@ def clear_fields():
     return {"ID": "", "mySubj": "", "myMemo": "", "search": ""}
 
 # 🔑 New helper: load function with dependency resolution
-def load_function(rec):
+def load_function_unsafe(rec):
     subj = rec["mySubj"].strip()
     body = rec["myMemo"]
     deps = rec.get("dependsOn", "").split(",") if rec.get("dependsOn") else []
@@ -106,6 +108,72 @@ def load_function(rec):
     function_registry[subj] = eval(subj)
     print(f"Function '{subj}' registered successfully.")
 
+#---------- SAFETY Measure ---------------------------
+# Define which built-ins are allowed
+SAFE_BUILTINS = {
+    "print": print,
+    "len": len,
+    "range": range,
+    "str": str,
+    "int": int,
+    "float": float,
+    "dict": dict,
+    "list": list,
+    "set": set,
+    "tuple": tuple,
+}
+
+def is_safe_code(code: str) -> bool:
+    """Check that code only contains safe AST nodes."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        print(f"Syntax error: {e}")
+        return False
+
+    for node in ast.walk(tree):
+        # Disallow imports, attribute access, deletes, etc.
+        if isinstance(node, (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal,
+                             ast.With, ast.AsyncWith, ast.Try, ast.Raise,
+                             ast.Delete, ast.Attribute)):
+            print(f"Unsafe node detected: {type(node).__name__}")
+            return False
+    return True
+
+
+def load_function(rec):
+    subj = rec["mySubj"].strip()
+    body = rec["myMemo"]
+    deps = rec.get("dependsOn", "").split(",") if rec.get("dependsOn") else []
+
+    # Load dependencies first
+    for dep in deps:
+        dep = dep.strip()
+        if dep and dep not in function_registry:
+            dep_records = read_records(dep)
+            if dep_records:
+                load_function(dep_records[0])
+
+    # Validate code before execution
+    if not is_safe_code(body):
+        print(f"Rejected unsafe code for function '{subj}'.")
+        return
+
+    # Restricted environment
+    safe_globals = {"__builtins__": SAFE_BUILTINS}
+    try:
+        exec(body, safe_globals)
+        func = safe_globals.get(subj)
+        if callable(func):
+            function_registry[subj] = func
+            print(f"Function '{subj}' registered safely.")
+        else:
+            print(f"Function '{subj}' not found after exec.")
+    except Exception as e:
+        print(f"Error executing function '{subj}': {e}")
+
+
+# ----------------------------------------------------------------
 def main():
     print("Welcome to Insoo's Memo DB Program!")
     print("Available commands: add(a), read(r), quit(q)")
