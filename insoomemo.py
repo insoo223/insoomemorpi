@@ -108,7 +108,21 @@ def load_function_unsafe(rec):
     function_registry[subj] = eval(subj)
     print(f"Function '{subj}' registered successfully.")
 
-#---------- SAFETY Measure ---------------------------
+#---------- SAFETY Measure (Ctrlable) ---------------------------
+def allow_builtin(name, func):
+    """Add a new builtin to the whitelist."""
+    SAFE_BUILTINS[name] = func
+    print(f"Allowed builtin: {name}")
+
+def disallow_builtin(name):
+    """Remove a builtin from the whitelist."""
+    if name in SAFE_BUILTINS:
+        SAFE_BUILTINS.pop(name)
+        print(f"Disallowed builtin: {name}")
+    else:
+        print(f"{name} not in whitelist.")
+        
+#---------- SAFETY Measure (Too strict) ---------------------------
 # Define which built-ins are allowed
 SAFE_BUILTINS = {
     "print": print,
@@ -123,8 +137,7 @@ SAFE_BUILTINS = {
     "tuple": tuple,
 }
 
-def is_safe_code(code: str) -> bool:
-    """Check that code only contains safe AST nodes."""
+def is_safe_code(code):
     try:
         tree = ast.parse(code)
     except SyntaxError as e:
@@ -132,10 +145,9 @@ def is_safe_code(code: str) -> bool:
         return False
 
     for node in ast.walk(tree):
-        # Disallow imports, attribute access, deletes, etc.
         if isinstance(node, (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal,
                              ast.With, ast.AsyncWith, ast.Try, ast.Raise,
-                             ast.Delete, ast.Attribute)):
+                             ast.Delete)):
             print(f"Unsafe node detected: {type(node).__name__}")
             return False
     return True
@@ -172,11 +184,29 @@ def load_function(rec):
     except Exception as e:
         print(f"Error executing function '{subj}': {e}")
 
+class SafePath:
+    join = staticmethod(os.path.join)
+    getsize = staticmethod(os.path.getsize)
+    isfile = staticmethod(os.path.isfile)
+
+class SafeOS:
+    listdir = staticmethod(os.listdir)
+    path = SafePath
 
 # ----------------------------------------------------------------
 def main():
     print("Welcome to Insoo's Memo DB Program!")
     print("Available commands: add(a), read(r), quit(q)")
+
+    #-- White list mgmt --
+    """
+    allow_builtin("listdir", os.listdir)
+    allow_builtin("path_join", os.path.join)
+    allow_builtin("getsize", os.path.getsize)
+    allow_builtin("isfile", os.path.isfile)
+    """
+    allow_builtin("os", SafeOS)
+
 
     while True:
         command = input("\nEnter command: ").strip().lower()
@@ -201,32 +231,46 @@ def main():
             if records:
                 total = len(records)
                 for i, rec in enumerate(records, start=1):
-                    print(f"{i}. ID: {rec['ID']}")
-                    print(f"   Subject: {rec['mySubj']}")
-                    clean_memo = rec['myMemo'].replace("\r", "").replace("\t", "")
-                    print("   Memo:")
-                    print("   " + clean_memo.strip().replace("\n", "\n   "))
-                    print("-" * 40)
+                    action = ""
+                    # Do the current def until press "x"
+                    while action != "x": 
+                        print(f"{i}. ID: {rec['ID']}")
+                        print(f"   Subject: {rec['mySubj']}")
+                        clean_memo = rec['myMemo'].replace("\r", "").replace("\t", "")
+                        print("   Memo:")
+                        print("   " + clean_memo.strip().replace("\n", "\n   "))
+                        print("-" * 40)
 
-                    remain = total - i
-                    action = input(f"Continue? ({remain}/{total} remain, Enter=next, s=stop, u=update, d=do ft def): ").strip().lower()
-                    if remain > 0 and action == "s":
-                        break
-                    if action == "u":
-                        newSubj = input("New subj: ").strip()
-                        newBody = input("New body: ").strip()
-                        if newSubj and newBody:
-                            count = update_record(rec["ID"], newSubj, newBody)
-                            print(f"{count} record(s) updated.")
-                    if action == "d":
-                        try:
-                            load_function(rec)
-                            params = input("Enter parameters separated by commas: ")
-                            args = [p.strip() for p in params.split(",") if p.strip()]
-                            result = function_registry[rec["mySubj"]](*args)
-                            print(f"Demo {rec['mySubj']}: {result}")
-                        except Exception as e:
-                            print(f"Error loading function: {e}")
+                        remain = total - i
+                        action = input(f"Continue? ({remain}/{total} remain, Enter=next, s=stop, u=update, d=do ft def): ").strip().lower()
+                        if remain > 0 and action == "s":
+                            break
+                        if action == "u":
+                            newSubj = input("New subj: ").strip()
+                            newBody = input("New body: ").strip()
+                            if newSubj and newBody:
+                                count = update_record(rec["ID"], newSubj, newBody)
+                                print(f"{count} record(s) updated.")
+                        if action == "d":
+                            try:
+                                load_function(rec)
+                                params = input("Enter parameters separated by commas: ")
+                                args = [p.strip() for p in params.split(",") if p.strip()]
+                                result = function_registry[rec["mySubj"]](*args)
+                                print(f"Demo {rec['mySubj']}: {result}")
+                            except Exception as e:
+                                print(f"Error loading function: {e}")
+                        if action == "l":
+                            try:
+                                params = input("Enter builtin names (comma-separated): ").strip().split(",")
+                                for name in [p.strip() for p in params if p.strip()]:
+                                    if name in dir(__builtins__):
+                                        allow_builtin(name, getattr(__builtins__, name))
+                                        print(f"Whitelisted {name}")
+                                    else:
+                                        print(f"{name} is not a recognized builtin.")
+                            except Exception as e:
+                                print(f"Error allow function: {e}")                                
             else:
                 print("No record found.")
 
