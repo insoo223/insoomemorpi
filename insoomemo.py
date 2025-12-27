@@ -1,3 +1,7 @@
+""" ------------------------------------------------------------------------------------
+(Dec27,2025: PN 691693016) This code file 'insoomemo.py' is obsolated by modular design refactoring
+I put it here just for your reference.
+
 import jaydebeapi
 import os
 import requests
@@ -276,3 +280,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+""" ------------------------------------------------------------------------------------
