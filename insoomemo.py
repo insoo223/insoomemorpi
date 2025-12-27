@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 # Load variables from .env file
 load_dotenv()
 
+# (Dec27,2025: PN 691693015) Define Feature Flags
+ENABLE_SECURITY = os.getenv("ENABLE_SECURITY", "true").lower() == "true"
+ENABLE_VERBOSE_LOGGING = os.getenv("ENABLE_VERBOSE_LOGGING", "false").lower() == "true"
+
 # Paths
 ACCDB_PATH = os.getenv("ACCDB_PATH")
 UCANACCESS_LIB = os.getenv("UCANACCESS_LIB")
@@ -89,38 +93,22 @@ def add_record(subj, memo, dependsOn=""):
 def clear_fields():
     return {"ID": "", "mySubj": "", "myMemo": "", "search": ""}
 
-# 🔑 New helper: load function with dependency resolution
-def load_function_unsafe(rec):
-    subj = rec["mySubj"].strip()
-    body = rec["myMemo"]
-    deps = rec.get("dependsOn", "").split(",") if rec.get("dependsOn") else []
-
-    # Load dependencies first
-    for dep in deps:
-        dep = dep.strip()
-        if dep and dep not in function_registry:
-            dep_records = read_records(dep)
-            if dep_records:
-                load_function(dep_records[0])
-
-    # Load the function itself
-    exec(body, globals())
-    function_registry[subj] = eval(subj)
-    print(f"Function '{subj}' registered successfully.")
-
 #---------- SAFETY Measure (Ctrlable) ---------------------------
 def allow_builtin(name, func):
     """Add a new builtin to the whitelist."""
     SAFE_BUILTINS[name] = func
-    print(f"Allowed builtin: {name}")
+    if ENABLE_VERBOSE_LOGGING:
+        print(f"Allowed builtin: {name}")
 
 def disallow_builtin(name):
     """Remove a builtin from the whitelist."""
     if name in SAFE_BUILTINS:
         SAFE_BUILTINS.pop(name)
-        print(f"Disallowed builtin: {name}")
+        if ENABLE_VERBOSE_LOGGING:
+            print(f"Disallowed builtin: {name}")
     else:
-        print(f"{name} not in whitelist.")
+        if ENABLE_VERBOSE_LOGGING:
+            print(f"{name} not in whitelist.")
         
 #---------- SAFETY Measure (Too strict) ---------------------------
 # Define which built-ins are allowed
@@ -152,7 +140,7 @@ def is_safe_code(code):
             return False
     return True
 
-
+# (Dec27,2025: PN 691693015) Refactor Security-Sensitive Functions
 def load_function(rec):
     subj = rec["mySubj"].strip()
     body = rec["myMemo"]
@@ -166,23 +154,30 @@ def load_function(rec):
             if dep_records:
                 load_function(dep_records[0])
 
-    # Validate code before execution
-    if not is_safe_code(body):
-        print(f"Rejected unsafe code for function '{subj}'.")
-        return
+    if ENABLE_SECURITY:
+        # Validate code before execution
+        if not is_safe_code(body):
+            print(f"Rejected unsafe code for function '{subj}'.")
+            return
 
-    # Restricted environment
-    safe_globals = {"__builtins__": SAFE_BUILTINS}
-    try:
-        exec(body, safe_globals)
-        func = safe_globals.get(subj)
-        if callable(func):
-            function_registry[subj] = func
-            print(f"Function '{subj}' registered safely.")
-        else:
-            print(f"Function '{subj}' not found after exec.")
-    except Exception as e:
-        print(f"Error executing function '{subj}': {e}")
+        # Restricted environment
+        safe_globals = {"__builtins__": SAFE_BUILTINS}
+        try:
+            exec(body, safe_globals)
+            func = safe_globals.get(subj)
+            if callable(func):
+                function_registry[subj] = func
+                print(f"Function '{subj}' registered safely.")
+            else:
+                print(f"Function '{subj}' not found after exec.")
+        except Exception as e:
+            print(f"Error executing function '{subj}': {e}")
+    else:
+        # Plain path: unsafe direct exec
+        exec(body, globals())
+        function_registry[subj] = eval(subj)
+        if ENABLE_VERBOSE_LOGGING:
+            print(f"[PLAIN] Function '{subj}' registered (unsafe).")
 
 class SafePath:
     join = staticmethod(os.path.join)
@@ -197,16 +192,15 @@ class SafeOS:
 def main():
     print("Welcome to Insoo's Memo DB Program!")
     print("Available commands: add(a), read(r), quit(q)")
-
-    #-- White list mgmt --
-    """
-    allow_builtin("listdir", os.listdir)
-    allow_builtin("path_join", os.path.join)
-    allow_builtin("getsize", os.path.getsize)
-    allow_builtin("isfile", os.path.isfile)
-    """
-    allow_builtin("os", SafeOS)
-
+    if ENABLE_SECURITY:
+        print("Security-enhaced ft call")
+    else:
+        print("Plain ft call (No Security-enforce)")
+    # (Dec27,2025: PN 691693015) Apply Flags in Main Program
+    if ENABLE_SECURITY:
+        allow_builtin("os", SafeOS)  # restricted OS wrapper
+    else:
+        allow_builtin("os", os)      # full OS access
 
     while True:
         command = input("\nEnter command: ").strip().lower()
