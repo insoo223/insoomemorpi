@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from core.db import add_record, read_records, update_record
+from bible.bible import bibleTest
 
 load_dotenv()
 ENABLE_SECURITY = os.getenv("ENABLE_SECURITY", "true").lower() == "true"
@@ -28,6 +29,9 @@ def main():
             depends = input("Dependencies (comma-separated): ").strip()
             add_record(subject, body, depends)
             print("New memo added successfully!")
+        elif command in ("b", "bible"):
+            # target = input("ID or subject: ").strip()
+            bibleTest()
         elif command in ("rs", "readSimple"):
             target = input("ID or subject: ").strip()
             records = read_records(target)
