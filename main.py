@@ -66,11 +66,28 @@ def main():
                         if remain > 0 and action == "s":
                             break
                         if action == "u":
+                            """
                             newSubj = input("New subj: ").strip()
                             newBody = input("New body: ").strip()
                             if newSubj and newBody:
                                 count = update_record(rec["ID"], newSubj, newBody)
                                 print(f"{count} record(s) updated.")
+                            """
+                            subject = input("updated subject: ").strip()
+                            print("Enter updated memo text (multi-line). Type END on its own line to finish:")
+                            lines = []
+                            while True:
+                                line = input()
+                                if line == "END":
+                                    break
+                                lines.append(line)
+                            body = "\n".join(lines)
+                            # depends = input("Dependencies (comma-separated): ").strip()
+                            # count = update_record(rec["ID"], subject, body)
+                            update_record(rec["ID"], subject, body)
+                            # add_record(subject, body, depends)
+                            print("Updated memo successfully!")
+
                         if action == "d":
                             try:
                                 load_function(rec)
