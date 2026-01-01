@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from core.db import add_record, read_records, update_record
+from core.add_command import handle_add
 from bible.bible import bibleTest
 
 load_dotenv()
@@ -17,6 +18,8 @@ def main():
     while True:
         command = input("\nEnter command: ").strip().lower()
         if command in ("a", "add"):
+            handle_add()
+            """
             subject = input("subject: ").strip()
             print("Enter memo text (multi-line). Type END on its own line to finish:")
             lines = []
@@ -29,6 +32,9 @@ def main():
             depends = input("Dependencies (comma-separated): ").strip()
             add_record(subject, body, depends)
             print("New memo added successfully!")
+            """
+            
+
         elif command in ("b", "bible"):
             # target = input("ID or subject: ").strip()
             bibleTest()
